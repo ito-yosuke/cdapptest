@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Docker Image to GHCR with Incremental Tag
 
 on:
   push:
@@ -13,6 +13,28 @@ jobs:
       # リポジトリのチェックアウト
       - name: Check out the repository
         uses: actions/checkout@v3
+
+      # 最新のタグを取得
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          if [ -z "$TAG" ]; then
+            echo "v0.0.0" > latest_tag
+          else
+            echo $TAG > latest_tag
+          fi
+
+      # タグをインクリメント
+      - name: Increment tag version
+        id: increment_tag
+        run: |
+          TAG=$(cat latest_tag)
+          IFS='.' read -r -a TAG_PARTS <<< "${TAG//v/}"
+          NEW_TAG="v${TAG_PARTS[0]}.${TAG_PARTS[1]}.$((TAG_PARTS[2]+1))"
+          echo "New tag: $NEW_TAG"
+          echo $NEW_TAG > new_tag
+          echo "::set-output name=new_tag::$NEW_TAG"
 
       # Docker Buildxのセットアップ
       - name: Set up Docker Buildx
@@ -32,4 +54,12 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64  # ARM64アーキテクチャを指定
-          tags: ghcr.io/${{ github.repository }}:latest
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ steps.increment_tag.outputs.new_tag }}
+
+      # 新しいタグを作成してプッシュ
+      - name: Create new tag
+        run: |
+          git tag ${{ steps.increment_tag.outputs.new_tag }}
+          git push origin ${{ steps.increment_tag.outputs.new_tag }}
