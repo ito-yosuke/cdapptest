@@ -1,14 +1,15 @@
-name: Build and Push Docker Image to GHCR with Incremental Tag
+name: Build and Push Docker Image on New Tag
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v[0-9].[0-9].[0-9]'  # 1桁の数字のみのタグにマッチ
+
 env:
   REGISTRY: ghcr.io
 
 jobs:
-  build:
+  BuildImage:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,24 +17,30 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@v3
 
-      # 最新のタグを取得
-      - name: Get latest tag
-        id: get_tag
+      # GitHub Container Registry から最新のイメージタグを取得
+      - name: Get latest image tag from GHCR
+        id: get_image_tag
         run: |
-          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $TAG"
-          echo $TAG > latest_tag
+          IMAGE_TAGS=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+          https://ghcr.io/v2/${{ github.repository }}/tags/list | jq -r '.tags[]' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)
+          if [ -z "$IMAGE_TAGS" ]; then
+            IMAGE_TAGS="v0.0.0"
+          fi
+          echo "Latest image tag: $IMAGE_TAGS"
+          echo "latest_image_tag=$IMAGE_TAGS" >> $GITHUB_ENV
 
-      # タグをインクリメント
-      - name: Increment tag version
-        id: increment_tag
+      # 現在のGitタグと比較し、異なる場合のみビルドを実行
+      - name: Compare tags
+        id: compare_tags
         run: |
-          TAG=$(cat latest_tag)
-          IFS='.' read -r -a TAG_PARTS <<< "${TAG//v/}"
-          NEW_TAG="v${TAG_PARTS[0]}.${TAG_PARTS[1]}.$((TAG_PARTS[2]+1))"
-          echo "New tag: $NEW_TAG"
-          echo $NEW_TAG > new_tag
-          echo "::set-output name=new_tag::$NEW_TAG"
+          CURRENT_TAG=${GITHUB_REF##*/}
+          if [ "$CURRENT_TAG" <= "${{ env.latest_image_tag }}" ]; then
+            echo "The current tag ($CURRENT_TAG) is not greater than the latest image tag (${{ env.latest_image_tag }}). Skipping build."
+            exit 0
+          else
+            echo "New tag detected: $CURRENT_TAG"
+            echo "new_image_tag=$CURRENT_TAG" >> $GITHUB_ENV
+          fi
 
       # Docker Buildxのセットアップ
       - name: Set up Docker Buildx
@@ -49,17 +56,36 @@ jobs:
 
       # Dockerイメージのビルドとプッシュ
       - name: Build and push Docker image
+        if: success()  # 前のステップが成功した場合のみ実行
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           platforms: linux/arm64  # ARM64アーキテクチャを指定
           tags: |
+            ghcr.io/${{ github.repository }}:${{ env.new_image_tag }}
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.increment_tag.outputs.new_tag }}
 
-      # 新しいタグを作成してプッシュ
-      - name: Create new tag
+jobs:
+  update-other-repo:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the current repository
+        uses: actions/checkout@v3
+
+      - name: Clone the other repository
         run: |
-          git tag ${{ steps.increment_tag.outputs.new_tag }}
-          git push origin ${{ steps.increment_tag.outputs.new_tag }}
+          git clone https://github.com/ito-yosuke/cdtest.git
+          cd OTHER_REPO_NAME
+
+      - name: Update YAML file (increment version tag)
+        run: |
+          cd OTHER_REPO_NAME
+          sed -i 's/version:.*/version: ${{ env.new_image_tag }}/' ~/demo-chart/Chart.yaml
+          git config --global user.email "your-email@example.com"
+          git config --global user.name "your-github-username"
+          git add ~/demo-chart/Chart.yaml
+          git commit -m "Update version to ${{ env.new_image_tag }}"
+          git push https://x-access-token:${{ secrets.REPO_ACCESS_TOKEN }}@github.com/OTHER_REPO_OWNER/OTHER_REPO_NAME.git main
