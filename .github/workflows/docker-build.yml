@@ -66,8 +66,8 @@ jobs:
             ghcr.io/${{ github.repository }}:${{ env.new_image_tag }}
             ghcr.io/${{ github.repository }}:latest
 
-  update-other-repo:
-    needs: build
+  update-helm:
+    needs: BuildImage
     runs-on: ubuntu-latest
 
     steps:
