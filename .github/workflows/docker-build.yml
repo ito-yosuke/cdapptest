@@ -86,6 +86,8 @@ jobs:
       run: |
         cd temp-repo
         sed -i 's/version:.*/version: ${{ env.new_image_tag }}/' demo-chart/Chart.yaml
+        git config --global user.name "github-actions"
+        git config --global user.email "github-actions@github.com"
         git add demo-chart/Chart.yaml
         git commit -m "Update version to ${{ env.new_image_tag }}"
 
@@ -93,5 +95,5 @@ jobs:
     - name: Push changes to other repository
       run: |
         cd temp-repo
-        git remote set-url origin https://x-access-token:${{ secrets.REPO_ACCESS_TOKEN }}@github.com/ito-yosuke/cdtest.git
+        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/ito-yosuke/cdtest.git
         git push origin main
