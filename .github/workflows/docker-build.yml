@@ -93,11 +93,11 @@ jobs:
     - name: Commit changes using GitHub Actions token
       run: |
         cd temp-repo
-        sed -i 's/version:**/version: ${{ steps.compare_tags.outputs.new_image_tag }}/' demo-chart/Chart.yaml
+        sed -i 's/version:.*/version: ${{ needs.BuildImage.compare_tags.outputs.new_image_tag }}/' demo-chart/Chart.yaml
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         git add demo-chart/Chart.yaml
-        git commit -m "Update version to ${{ steps.compare_tags.outputs.new_image_tag }}"
+        git commit -m "Update version to ${{ needs.BuildImage.compare_tags.outputs.new_image_tag }}"
 
     # リポジトリにプッシュ
     - name: Push changes to other repository
