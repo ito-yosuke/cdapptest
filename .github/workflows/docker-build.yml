@@ -95,5 +95,5 @@ jobs:
     - name: Push changes to other repository
       run: |
         cd temp-repo
-        git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/ito-yosuke/cdtest.git
+        git remote set-url origin https://x-access-token:${{ secrets.REPO_ACCESS_TOKEN }}@github.com/ito-yosuke/cdtest.git
         git push origin main
