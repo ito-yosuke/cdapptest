@@ -16,6 +16,9 @@ jobs:
   BuildImage:
     runs-on: ubuntu-latest
 
+    outputs:
+      latest-tag: ${{ steps.compare_tags.outputs.new_image_tag }};
+
     steps:
       # リポジトリのチェックアウト
       - name: Check out the repository
@@ -44,6 +47,7 @@ jobs:
           else
             echo "New tag detected: $CURRENT_TAG"
             echo "new_image_tag=$CURRENT_TAG" >> $GITHUB_ENV
+            echo "new_image_tag=$CURRENT_TAG" >> $GITHUB_OUTPUT
           fi
 
       # Docker Buildxのセットアップ
@@ -89,11 +93,11 @@ jobs:
     - name: Commit changes using GitHub Actions token
       run: |
         cd temp-repo
-        sed -i 's/version:.*/version: ${{ env.new_image_tag }}/' demo-chart/Chart.yaml
+        sed -i 's/version:.*/version: ${{ steps.compare_tags.outputs.new_image_tag }}/' demo-chart/Chart.yaml
         git config --global user.name "github-actions"
         git config --global user.email "github-actions@github.com"
         git add demo-chart/Chart.yaml
-        git commit -m "Update version to ${{ env.new_image_tag }}"
+        git commit -m "Update version to ${{ steps.compare_tags.outputs.new_image_tag }}"
 
     # リポジトリにプッシュ
     - name: Push changes to other repository
