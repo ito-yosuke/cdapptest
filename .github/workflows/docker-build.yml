@@ -41,7 +41,7 @@ jobs:
         id: compare_tags
         run: |
           CURRENT_TAG=${GITHUB_REF##*/}
-          if [ "$CURRENT_TAG" <= "${{ env.latest_image_tag }}" ]; then
+          if [ "$CURRENT_TAG" \<= "${{ env.latest_image_tag }}" ]; then
             echo "The current tag ($CURRENT_TAG) is not greater than the latest image tag (${{ env.latest_image_tag }}). Skipping build."
             exit 0
           else
